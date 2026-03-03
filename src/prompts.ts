@@ -6,8 +6,10 @@ import type { Scratchpad } from "./types";
  * Builds the financial research system prompt.
  * Injected with today's date and available MCP tool names for LLM awareness.
  */
-export function buildSystemPrompt(mcpToolNames: string[]): string {
-  const today = new Date().toISOString().split("T")[0];
+export function buildSystemPrompt(
+  mcpToolNames: string[],
+  today: string = new Date().toISOString().split("T")[0]
+): string {
   const toolList =
     mcpToolNames.length > 0
       ? mcpToolNames.map((t) => `  - ${t}`).join("\n")
@@ -49,6 +51,9 @@ ${toolList}
  * Used to compress earlier tool results before continuing.
  */
 export function buildContextSummaryPrompt(scratchpad: Scratchpad): string {
+  if (scratchpad.toolResults.length <= 2) {
+    return "No earlier tool results to summarize.";
+  }
   const toolSummaries = scratchpad.toolResults
     .slice(0, -2) // keep last 2 raw results
     .map((r) => `[${r.tool} @ ${r.timestamp}]: ${JSON.stringify(r.result).slice(0, 200)}...`)
