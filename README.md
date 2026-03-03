@@ -1,6 +1,6 @@
 # Financial Research Agent
 
-An AI-powered financial research assistant that gives you real-time market data, financial statements, and news — all in a single conversational interface. Built on Cloudflare Workers with the Agents SDK, it orchestrates multi-step tool calls across Yahoo Finance, Financial Modeling Prep, and Cloudflare Browser Rendering to answer complex equity, crypto, and macro questions.
+An AI-powered financial research assistant inspired by https://github.com/virattt/dexter that gives you real-time market data, financial statements, and news — all in a single conversational interface. Built on Cloudflare Workers with the Agents SDK, it orchestrates multi-step tool calls across Yahoo Finance, Financial Modeling Prep, and Cloudflare Browser Rendering to answer complex equity, crypto, and macro questions.
 
 ![Financial Research Agent](./npm-agents-banner.svg)
 
