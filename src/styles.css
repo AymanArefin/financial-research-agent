@@ -10,3 +10,372 @@ body,
   height: 100%;
   margin: 0;
 }
+
+/* ── System font stack — SF Pro on Apple, clean everywhere else ── */
+:root {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue",
+    Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  letter-spacing: -0.011em;
+}
+
+/* ── Smooth theme transitions ──────────────────────────────────── */
+*,
+*::before,
+*::after {
+  transition-property: background-color, border-color, color, box-shadow;
+  transition-duration: 0.18s;
+  transition-timing-function: ease;
+}
+
+/* ── Apple Light Mode ──────────────────────────────────────────── */
+:root,
+html:not([data-mode="dark"]) {
+  color-scheme: light;
+
+  /* Surfaces */
+  --color-kumo-elevated: #f5f5f7;
+  --color-kumo-base: #ffffff;
+  --color-kumo-recessed: #e8e8ed;
+  --color-kumo-overlay: rgba(249, 249, 249, 0.95);
+  --color-kumo-control: #ffffff;
+  --color-kumo-tint: #f5f5f7;
+  --color-kumo-interact: rgba(0, 0, 0, 0.04);
+  --color-kumo-fill: rgba(0, 0, 0, 0.055);
+  --color-kumo-fill-hover: rgba(0, 0, 0, 0.085);
+  --color-kumo-contrast: #1d1d1f;
+
+  /* Borders */
+  --color-kumo-line: rgba(0, 0, 0, 0.08);
+  --color-kumo-ring: rgba(0, 0, 0, 0.2);
+
+  /* Accent: Apple blue */
+  --color-kumo-brand: #0071e3;
+  --color-kumo-brand-hover: #0077ed;
+
+  /* Text */
+  --text-color-kumo-default: #1d1d1f;
+  --text-color-kumo-inverse: #f5f5f7;
+  --text-color-kumo-strong: #6e6e73;
+  --text-color-kumo-subtle: #86868b;
+  --text-color-kumo-inactive: #aeaeb2;
+  --text-color-kumo-link: #0071e3;
+  --text-color-kumo-success: #34c759;
+  --text-color-kumo-danger: #ff3b30;
+  --text-color-kumo-warning: #ff9f0a;
+
+  /* Shadows */
+  --color-kumo-tip-shadow: rgba(0, 0, 0, 0.08);
+}
+
+/* ── Apple Dark Mode ───────────────────────────────────────────── */
+html[data-mode="dark"] {
+  color-scheme: dark;
+
+  /* Surfaces */
+  --color-kumo-elevated: #000000;
+  --color-kumo-base: #1c1c1e;
+  --color-kumo-recessed: #3a3a3c;
+  --color-kumo-overlay: rgba(28, 28, 30, 0.94);
+  --color-kumo-control: #2c2c2e;
+  --color-kumo-tint: #2c2c2e;
+  --color-kumo-interact: rgba(255, 255, 255, 0.06);
+  --color-kumo-fill: rgba(255, 255, 255, 0.08);
+  --color-kumo-fill-hover: rgba(255, 255, 255, 0.12);
+  --color-kumo-contrast: #f5f5f7;
+
+  /* Borders */
+  --color-kumo-line: rgba(255, 255, 255, 0.09);
+  --color-kumo-ring: rgba(255, 255, 255, 0.22);
+
+  /* Accent: Apple blue dark */
+  --color-kumo-brand: #0a84ff;
+  --color-kumo-brand-hover: #409cff;
+
+  /* Text */
+  --text-color-kumo-default: #f5f5f7;
+  --text-color-kumo-inverse: #1d1d1f;
+  --text-color-kumo-strong: #aeaeb2;
+  --text-color-kumo-subtle: #8e8e93;
+  --text-color-kumo-inactive: #636366;
+  --text-color-kumo-link: #0a84ff;
+  --text-color-kumo-success: #30d158;
+  --text-color-kumo-danger: #ff453a;
+  --text-color-kumo-warning: #ffd60a;
+
+  /* Shadows */
+  --color-kumo-tip-shadow: transparent;
+}
+
+/* ── Frosted-glass header ──────────────────────────────────────── */
+.apple-header {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background-color: rgba(255, 255, 255, 0.72) !important;
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06) !important;
+}
+
+html[data-mode="dark"] .apple-header {
+  background-color: rgba(28, 28, 30, 0.76) !important;
+  border-bottom-color: rgba(255, 255, 255, 0.07) !important;
+}
+
+/* ── Heading weight ──────────────────────────────────────────── */
+h1 {
+  letter-spacing: -0.022em;
+  font-weight: 590;
+}
+
+/* ── Apple-style user message bubble ──────────────────────────── */
+.apple-user-bubble {
+  background: #0071e3;
+  color: #ffffff;
+  border-radius: 18px 18px 4px 18px;
+  padding: 10px 16px;
+  font-size: 14px;
+  line-height: 1.55;
+  max-width: 85%;
+  word-break: break-word;
+}
+
+html[data-mode="dark"] .apple-user-bubble {
+  background: #0a84ff;
+}
+
+/* ── Input container ───────────────────────────────────────────── */
+.apple-input-wrap {
+  border-radius: 14px;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  background: #ffffff;
+  transition:
+    box-shadow 0.2s ease,
+    border-color 0.2s ease;
+}
+
+.apple-input-wrap:focus-within {
+  border-color: rgba(0, 113, 227, 0.35);
+  box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.1);
+}
+
+html[data-mode="dark"] .apple-input-wrap {
+  background: #2c2c2e;
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+html[data-mode="dark"] .apple-input-wrap:focus-within {
+  border-color: rgba(10, 132, 255, 0.4);
+  box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.14);
+}
+
+/* ── Tool execution card ───────────────────────────────────────── */
+.apple-tool-card {
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.025);
+  border: 1px solid rgba(0, 0, 0, 0.07);
+  padding: 10px 14px;
+  max-width: 85%;
+}
+
+html[data-mode="dark"] .apple-tool-card {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+/* ── Reasoning card ────────────────────────────────────────────── */
+.apple-reasoning summary {
+  border-radius: 10px;
+  background: rgba(88, 86, 214, 0.055);
+  border: 1px solid rgba(88, 86, 214, 0.12);
+  padding: 8px 12px;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  user-select: none;
+  transition: background 0.15s ease;
+}
+
+.apple-reasoning summary:hover {
+  background: rgba(88, 86, 214, 0.09);
+}
+
+html[data-mode="dark"] .apple-reasoning summary {
+  background: rgba(88, 86, 214, 0.1);
+  border-color: rgba(88, 86, 214, 0.18);
+}
+
+.apple-reasoning pre {
+  margin-top: 6px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow: auto;
+  max-height: 240px;
+  background: rgba(0, 0, 0, 0.03);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+html[data-mode="dark"] .apple-reasoning pre {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.07);
+}
+
+/* ── MCP panel ─────────────────────────────────────────────────── */
+.apple-panel {
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  box-shadow:
+    0 4px 6px -1px rgba(0, 0, 0, 0.06),
+    0 10px 24px -4px rgba(0, 0, 0, 0.08);
+  padding: 16px;
+}
+
+html[data-mode="dark"] .apple-panel {
+  background: rgba(44, 44, 46, 0.92);
+  border-color: rgba(255, 255, 255, 0.1);
+  box-shadow:
+    0 4px 6px -1px rgba(0, 0, 0, 0.3),
+    0 10px 24px -4px rgba(0, 0, 0, 0.4);
+}
+
+/* ── Server row ────────────────────────────────────────────────── */
+.apple-server-row {
+  border-radius: 8px;
+  border: 1px solid rgba(0, 0, 0, 0.07);
+  padding: 10px;
+  background: rgba(0, 0, 0, 0.02);
+}
+
+html[data-mode="dark"] .apple-server-row {
+  border-color: rgba(255, 255, 255, 0.07);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+/* ── Prompt suggestion chips ───────────────────────────────────── */
+.apple-chip {
+  border-radius: 980px;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  background: rgba(0, 0, 0, 0.03);
+  color: #1d1d1f;
+  font-size: 13px;
+  padding: 7px 14px;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    transform 0.12s ease;
+  white-space: normal;
+  text-align: left;
+  line-height: 1.4;
+}
+
+.apple-chip:hover:not(:disabled) {
+  background: rgba(0, 113, 227, 0.06);
+  border-color: rgba(0, 113, 227, 0.2);
+  color: #0071e3;
+  transform: translateY(-1px);
+}
+
+.apple-chip:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.apple-chip:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+html[data-mode="dark"] .apple-chip {
+  border-color: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+  color: #f5f5f7;
+}
+
+html[data-mode="dark"] .apple-chip:hover:not(:disabled) {
+  background: rgba(10, 132, 255, 0.1);
+  border-color: rgba(10, 132, 255, 0.25);
+  color: #0a84ff;
+}
+
+/* ── Thin, Apple-style scrollbars ──────────────────────────────── */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.14);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.25);
+}
+
+html[data-mode="dark"] ::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+html[data-mode="dark"] ::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+/* ── Streamdown markdown refinements ───────────────────────────── */
+.sd-theme {
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+.sd-theme p {
+  margin: 0 0 0.75em;
+}
+
+.sd-theme p:last-child {
+  margin-bottom: 0;
+}
+
+.sd-theme code {
+  font-family: "SF Mono", ui-monospace, "Cascadia Code", Menlo, monospace;
+  font-size: 12px;
+  border-radius: 5px;
+  padding: 1px 5px;
+  background: rgba(0, 0, 0, 0.055);
+}
+
+html[data-mode="dark"] .sd-theme code {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.sd-theme pre code {
+  background: transparent;
+  padding: 0;
+}
+
+.sd-theme pre {
+  border-radius: 10px;
+  padding: 12px 16px;
+  overflow: auto;
+  background: rgba(0, 0, 0, 0.04);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  margin: 0.5em 0;
+}
+
+html[data-mode="dark"] .sd-theme pre {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.07);
+}

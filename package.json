@@ -32,6 +32,7 @@
 		"zod": "^4.3.6"
 	},
 	"devDependencies": {
+		"@cloudflare/puppeteer": "^1.0.6",
 		"@cloudflare/vite-plugin": "1.25.6",
 		"@cloudflare/workers-types": "^4.20260301.1",
 		"@tailwindcss/vite": "^4.2.1",

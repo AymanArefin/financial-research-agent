@@ -8,8 +8,6 @@ import {
   Button,
   Badge,
   InputArea,
-  Empty,
-  Surface,
   Text
 } from "@cloudflare/kumo";
 import { Toasty, useKumoToastManager } from "@cloudflare/kumo/components/toast";
@@ -82,20 +80,16 @@ function ToolPartView({
   if (part.state === "output-available") {
     return (
       <div className="flex justify-start">
-        <Surface className="max-w-[85%] px-4 py-2.5 rounded-xl ring ring-kumo-line">
-          <div className="flex items-center gap-2 mb-1">
-            <GearIcon size={14} className="text-kumo-inactive" />
-            <Text size="xs" variant="secondary" bold>
-              {toolName}
-            </Text>
+        <div className="apple-tool-card">
+          <div className="flex items-center gap-2 mb-1.5">
+            <GearIcon size={13} className="text-kumo-inactive" />
+            <span className="text-xs font-medium text-kumo-default">{toolName}</span>
             <Badge variant="secondary">Done</Badge>
           </div>
-          <div className="font-mono">
-            <Text size="xs" variant="secondary">
-              {JSON.stringify(part.output, null, 2)}
-            </Text>
-          </div>
-        </Surface>
+          <pre className="font-mono text-[11px] text-kumo-subtle overflow-auto max-h-40 whitespace-pre-wrap">
+            {JSON.stringify(part.output, null, 2)}
+          </pre>
+        </div>
       </div>
     );
   }
@@ -105,23 +99,21 @@ function ToolPartView({
     const approvalId = (part.approval as { id?: string })?.id;
     return (
       <div className="flex justify-start">
-        <Surface className="max-w-[85%] px-4 py-3 rounded-xl ring-2 ring-kumo-warning">
+        <div className="apple-tool-card" style={{ borderColor: "rgba(255, 159, 10, 0.25)", background: "rgba(255, 159, 10, 0.04)" }}>
           <div className="flex items-center gap-2 mb-2">
-            <GearIcon size={14} className="text-kumo-warning" />
-            <Text size="sm" bold>
+            <GearIcon size={13} className="text-kumo-warning" />
+            <span className="text-xs font-semibold text-kumo-default">
               Approval needed: {toolName}
-            </Text>
+            </span>
           </div>
-          <div className="font-mono mb-3">
-            <Text size="xs" variant="secondary">
-              {JSON.stringify(part.input, null, 2)}
-            </Text>
-          </div>
+          <pre className="font-mono text-[11px] text-kumo-subtle mb-3 overflow-auto max-h-40 whitespace-pre-wrap">
+            {JSON.stringify(part.input, null, 2)}
+          </pre>
           <div className="flex gap-2">
             <Button
               variant="primary"
               size="sm"
-              icon={<CheckCircleIcon size={14} />}
+              icon={<CheckCircleIcon size={13} />}
               onClick={() => {
                 if (approvalId) {
                   addToolApprovalResponse({ id: approvalId, approved: true });
@@ -133,7 +125,7 @@ function ToolPartView({
             <Button
               variant="secondary"
               size="sm"
-              icon={<XCircleIcon size={14} />}
+              icon={<XCircleIcon size={13} />}
               onClick={() => {
                 if (approvalId) {
                   addToolApprovalResponse({ id: approvalId, approved: false });
@@ -143,7 +135,7 @@ function ToolPartView({
               Reject
             </Button>
           </div>
-        </Surface>
+        </div>
       </div>
     );
   }
@@ -156,15 +148,11 @@ function ToolPartView({
   ) {
     return (
       <div className="flex justify-start">
-        <Surface className="max-w-[85%] px-4 py-2.5 rounded-xl ring ring-kumo-line">
-          <div className="flex items-center gap-2">
-            <XCircleIcon size={14} className="text-kumo-danger" />
-            <Text size="xs" variant="secondary" bold>
-              {toolName}
-            </Text>
-            <Badge variant="secondary">Rejected</Badge>
-          </div>
-        </Surface>
+        <div className="apple-tool-card flex items-center gap-2">
+          <XCircleIcon size={13} className="text-kumo-danger" />
+          <span className="text-xs font-medium text-kumo-default">{toolName}</span>
+          <Badge variant="secondary">Rejected</Badge>
+        </div>
       </div>
     );
   }
@@ -173,14 +161,10 @@ function ToolPartView({
   if (part.state === "input-available" || part.state === "input-streaming") {
     return (
       <div className="flex justify-start">
-        <Surface className="max-w-[85%] px-4 py-2.5 rounded-xl ring ring-kumo-line">
-          <div className="flex items-center gap-2">
-            <GearIcon size={14} className="text-kumo-inactive animate-spin" />
-            <Text size="xs" variant="secondary">
-              Running {toolName}...
-            </Text>
-          </div>
-        </Surface>
+        <div className="apple-tool-card flex items-center gap-2">
+          <GearIcon size={13} className="text-kumo-inactive animate-spin" />
+          <span className="text-xs text-kumo-subtle">Running {toolName}…</span>
+        </div>
       </div>
     );
   }
@@ -346,15 +330,15 @@ function Chat() {
   return (
     <div className="flex flex-col h-screen bg-kumo-elevated">
       {/* Header */}
-      <header className="px-5 py-4 bg-kumo-base border-b border-kumo-line">
+      <header className="apple-header px-5 py-3.5">
         <div className="max-w-3xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <h1 className="text-lg font-semibold text-kumo-default">
-              <span className="mr-2">📈</span>Financial Research Agent
+            <h1 className="text-[15px] font-semibold text-kumo-default tracking-tight">
+              Financial Research
             </h1>
             <Badge variant="secondary">
-              <ChatCircleDotsIcon size={12} weight="bold" className="mr-1" />
-              AI Chat
+              <ChatCircleDotsIcon size={11} weight="bold" className="mr-1" />
+              Agent
             </Badge>
           </div>
           <div className="flex items-center gap-3">
@@ -396,7 +380,7 @@ function Chat() {
               {/* MCP Dropdown Panel */}
               {showMcpPanel && (
                 <div className="absolute right-0 top-full mt-2 w-96 z-50">
-                  <Surface className="rounded-xl ring ring-kumo-line shadow-lg p-4 space-y-4">
+                  <div className="apple-panel space-y-4">
                     {/* Panel Header */}
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
@@ -436,7 +420,7 @@ function Chat() {
                         value={mcpName}
                         onChange={(e) => setMcpName(e.target.value)}
                         placeholder="Server name"
-                        className="w-full px-3 py-1.5 text-sm rounded-lg border border-kumo-line bg-kumo-base text-kumo-default placeholder:text-kumo-inactive focus:outline-none focus:ring-1 focus:ring-kumo-accent"
+                        className="w-full px-3 py-1.5 text-sm rounded-lg border border-kumo-line bg-kumo-base text-kumo-default placeholder:text-kumo-inactive focus:outline-none focus:ring-2 focus:ring-kumo-brand/20 focus:border-kumo-brand/40 transition-all"
                       />
                       <div className="flex gap-2">
                         <input
@@ -444,7 +428,7 @@ function Chat() {
                           value={mcpUrl}
                           onChange={(e) => setMcpUrl(e.target.value)}
                           placeholder="https://mcp.example.com"
-                          className="flex-1 px-3 py-1.5 text-sm rounded-lg border border-kumo-line bg-kumo-base text-kumo-default placeholder:text-kumo-inactive focus:outline-none focus:ring-1 focus:ring-kumo-accent font-mono"
+                          className="flex-1 px-3 py-1.5 text-sm rounded-lg border border-kumo-line bg-kumo-base text-kumo-default placeholder:text-kumo-inactive focus:outline-none focus:ring-2 focus:ring-kumo-brand/20 focus:border-kumo-brand/40 transition-all font-mono"
                         />
                         <Button
                           type="submit"
@@ -466,7 +450,7 @@ function Chat() {
                         {serverEntries.map(([id, server]) => (
                           <div
                             key={id}
-                            className="flex items-start justify-between p-2.5 rounded-lg border border-kumo-line"
+                            className="apple-server-row flex items-start justify-between"
                           >
                             <div className="min-w-0 flex-1">
                               <div className="flex items-center gap-2">
@@ -539,7 +523,7 @@ function Chat() {
                         </div>
                       </div>
                     )}
-                  </Surface>
+                  </div>
                 </div>
               )}
             </div>
@@ -561,7 +545,7 @@ function Chat() {
 
               {showScratchpad && (
                 <div className="absolute top-full right-0 mt-2 w-72 z-50">
-                  <Surface className="p-4 shadow-xl space-y-3">
+                  <div className="apple-panel space-y-3">
                     <Text size="sm" bold>Research Scratchpad</Text>
                     {scratchpad?.researchQuery && (
                       <div>
@@ -602,7 +586,7 @@ function Chat() {
                     >
                       Reset
                     </Button>
-                  </Surface>
+                  </div>
                 </div>
               )}
             </div>
@@ -619,39 +603,47 @@ function Chat() {
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto">
-        <div className="max-w-3xl mx-auto px-5 py-6 space-y-5">
+        <div className="max-w-3xl mx-auto px-5 py-8 space-y-6">
           {messages.length === 0 && (
-            <Empty
-              icon={<ChatCircleDotsIcon size={32} />}
-              title="Start a conversation"
-              contents={
-                <div className="flex flex-wrap justify-center gap-2">
-                  {[
-                    "Research Apple stock — price, fundamentals, and recent news",
-                    "How has NVDA performed over the past 3 months?",
-                    "Compare MSFT vs GOOGL revenue growth",
-                    "What are Bitcoin and Ethereum doing today?",
-                    "Show me Tesla's latest quarterly financials",
-                    "What's the P/E ratio for the S&P 500 ETF (SPY)?"
-                  ].map((prompt) => (
-                    <Button
-                      key={prompt}
-                      variant="outline"
-                      size="sm"
-                      disabled={isStreaming}
-                      onClick={() => {
-                        sendMessage({
-                          role: "user",
-                          parts: [{ type: "text", text: prompt }]
-                        });
-                      }}
-                    >
-                      {prompt}
-                    </Button>
-                  ))}
+            <div className="flex flex-col items-center justify-center py-16 gap-8">
+              <div className="flex flex-col items-center gap-3 text-center">
+                <div className="w-12 h-12 rounded-2xl bg-kumo-fill flex items-center justify-center">
+                  <ChatCircleDotsIcon size={22} className="text-kumo-subtle" />
                 </div>
-              }
-            />
+                <div>
+                  <p className="text-[15px] font-semibold text-kumo-default tracking-tight">
+                    How can I help you today?
+                  </p>
+                  <p className="text-[13px] text-kumo-subtle mt-0.5">
+                    Ask anything about stocks, crypto, or markets
+                  </p>
+                </div>
+              </div>
+              <div className="flex flex-wrap justify-center gap-2 max-w-xl">
+                {[
+                  "Research Apple stock — price, fundamentals, and news",
+                  "How has NVDA performed over the past 3 months?",
+                  "Compare MSFT vs GOOGL revenue growth",
+                  "What are Bitcoin and Ethereum doing today?",
+                  "Show me Tesla's latest quarterly financials",
+                  "What's the P/E ratio for SPY?"
+                ].map((prompt) => (
+                  <button
+                    key={prompt}
+                    className="apple-chip"
+                    disabled={isStreaming}
+                    onClick={() => {
+                      sendMessage({
+                        role: "user",
+                        parts: [{ type: "text", text: prompt }]
+                      });
+                    }}
+                  >
+                    {prompt}
+                  </button>
+                ))}
+              </div>
+            </div>
           )}
 
           {messages.map((message: UIMessage, index: number) => {
@@ -692,29 +684,18 @@ function Chat() {
                     const isDone = reasoning.state === "done" || !isStreaming;
                     return (
                       <div key={i} className="flex justify-start">
-                        <details className="max-w-[85%] w-full" open={!isDone}>
-                          <summary className="flex items-center gap-2 cursor-pointer px-3 py-2 rounded-lg bg-purple-500/10 border border-purple-500/20 text-sm select-none">
-                            <BrainIcon size={14} className="text-purple-400" />
-                            <span className="font-medium text-kumo-default">
-                              Reasoning
-                            </span>
+                        <details className="apple-reasoning max-w-[85%] w-full" open={!isDone}>
+                          <summary>
+                            <BrainIcon size={13} className="text-purple-500 shrink-0" />
+                            <span className="font-medium text-kumo-default">Reasoning</span>
                             {isDone ? (
-                              <span className="text-xs text-kumo-success">
-                                Complete
-                              </span>
+                              <span className="text-[11px] text-kumo-success ml-1">Complete</span>
                             ) : (
-                              <span className="text-xs text-kumo-brand">
-                                Thinking...
-                              </span>
+                              <span className="text-[11px] text-kumo-brand ml-1">Thinking…</span>
                             )}
-                            <CaretDownIcon
-                              size={14}
-                              className="ml-auto text-kumo-inactive"
-                            />
+                            <CaretDownIcon size={12} className="ml-auto text-kumo-inactive shrink-0" />
                           </summary>
-                          <pre className="mt-2 px-3 py-2 rounded-lg bg-kumo-control text-xs text-kumo-default whitespace-pre-wrap overflow-auto max-h-64">
-                            {reasoning.text}
-                          </pre>
+                          <pre>{reasoning.text}</pre>
                         </details>
                       </div>
                     );
@@ -730,18 +711,16 @@ function Chat() {
                     if (isUser) {
                       return (
                         <div key={i} className="flex justify-end">
-                          <div className="max-w-[85%] px-4 py-2.5 rounded-2xl rounded-br-md bg-kumo-contrast text-kumo-inverse leading-relaxed">
-                            {text}
-                          </div>
+                          <div className="apple-user-bubble">{text}</div>
                         </div>
                       );
                     }
 
                     return (
                       <div key={i} className="flex justify-start">
-                        <div className="max-w-[85%] rounded-2xl rounded-bl-md bg-kumo-base text-kumo-default leading-relaxed">
+                        <div className="max-w-[85%] text-kumo-default">
                           <Streamdown
-                            className="sd-theme rounded-2xl rounded-bl-md p-3"
+                            className="sd-theme"
                             controls={false}
                             isAnimating={isLastAssistant && isStreaming}
                           >
@@ -768,7 +747,7 @@ function Chat() {
           }}
           className="max-w-3xl mx-auto px-5 py-4"
         >
-          <div className="flex items-end gap-3 rounded-xl border border-kumo-line bg-kumo-base p-3 shadow-sm focus-within:ring-2 focus-within:ring-kumo-ring focus-within:border-transparent transition-shadow">
+          <div className="apple-input-wrap flex items-end gap-3 p-3">
             <InputArea
               ref={textareaRef}
               value={input}

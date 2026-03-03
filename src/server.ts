@@ -1,4 +1,5 @@
 // src/server.ts
+import puppeteer from "@cloudflare/puppeteer";
 import { createWorkersAI } from "workers-ai-provider";
 import { routeAgentRequest, callable } from "agents";
 import { AIChatAgent, type OnChatMessageOptions } from "@cloudflare/ai-chat";
@@ -18,7 +19,10 @@ import {
   MAX_ITERATIONS,
 } from "./types";
 
-const POLYGON_BASE = "https://api.polygon.io";
+const YAHOO_Q1 = "https://query1.finance.yahoo.com";
+const YAHOO_Q2 = "https://query2.finance.yahoo.com";
+// FMP migrated from /api/v3/ (legacy, deprecated Aug 2025) to /stable/ for new API keys
+const FMP_BASE = "https://financialmodelingprep.com";
 
 export class FinancialResearchAgent extends AIChatAgent<Env, AgentState> {
   initialState = INITIAL_STATE;
@@ -28,8 +32,7 @@ export class FinancialResearchAgent extends AIChatAgent<Env, AgentState> {
 
   async onStart() {
     // Remove any MCP servers that are in a failed state from previous runs.
-    // This prevents stale persisted connections (e.g. from a wrong URL in a
-    // prior deploy) from generating "failed" warnings on every agent wake.
+    // This prevents stale persisted connections from generating warnings on every agent wake.
     const mcpState = this.getMcpServers();
     for (const [id, server] of Object.entries(mcpState.servers)) {
       if (server.state === "failed") {
@@ -58,19 +61,65 @@ export class FinancialResearchAgent extends AIChatAgent<Env, AgentState> {
     });
   }
 
-  /** Helper: fetch from Polygon.io REST API with API key auth */
-  private async polygonFetch(path: string, params: Record<string, string> = {}): Promise<unknown> {
-    const url = new URL(`${POLYGON_BASE}${path}`);
-    url.searchParams.set("apiKey", this.env.POLYGON_API_KEY);
+  /** Helper: fetch from Yahoo Finance APIs (no auth required) */
+  private async yahooFetch(base: string, path: string, params: Record<string, string> = {}): Promise<unknown> {
+    const url = new URL(`${base}${path}`);
+    for (const [k, v] of Object.entries(params)) {
+      url.searchParams.set(k, v);
+    }
+    const res = await fetch(url.toString(), {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
+        "Accept": "application/json, text/plain, */*",
+        "Accept-Language": "en-US,en;q=0.9",
+      },
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`Yahoo Finance API error ${res.status}: ${text.slice(0, 200)}`);
+    }
+    return res.json();
+  }
+
+  /** Helper: fetch from Financial Modeling Prep (new /stable/ endpoints, requires FMP_API_KEY) */
+  private async fmpFetch(path: string, params: Record<string, string> = {}): Promise<unknown> {
+    const url = new URL(`${FMP_BASE}${path}`);
+    url.searchParams.set("apikey", this.env.FMP_API_KEY);
     for (const [k, v] of Object.entries(params)) {
       url.searchParams.set(k, v);
     }
     const res = await fetch(url.toString());
     if (!res.ok) {
       const text = await res.text();
-      throw new Error(`Polygon.io API error ${res.status}: ${text.slice(0, 200)}`);
+      throw new Error(`FMP API error ${res.status}: ${text.slice(0, 300)}`);
     }
-    return res.json();
+    const data = await res.json() as unknown;
+    // FMP returns an error object even on 200 for invalid/legacy endpoint access
+    if (typeof data === "object" && data !== null && "Error Message" in data) {
+      throw new Error(`FMP error: ${(data as Record<string, string>)["Error Message"]}`);
+    }
+    return data;
+  }
+
+  /** Helper: open a real browser via Cloudflare Browser Rendering and return page text */
+  private async browserFetch(url: string): Promise<{ url: string; content: string }> {
+    const browser = await puppeteer.launch(this.env.BROWSER);
+    try {
+      const page = await browser.newPage();
+      await page.setUserAgent(
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36"
+      );
+      await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30000 });
+      // Allow JS-rendered content to settle
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+      const text = await page.$eval("body", (el) => (el as HTMLElement).innerText ?? el.textContent ?? "");
+      return {
+        url,
+        content: text.replace(/\s+/g, " ").trim().slice(0, 8000),
+      };
+    } finally {
+      await browser.close();
+    }
   }
 
   // ── Callable RPC methods (invoked from frontend via agent.call()) ──
@@ -106,10 +155,10 @@ export class FinancialResearchAgent extends AIChatAgent<Env, AgentState> {
     const mcpTools = this.mcp.getAITools();
     const workersai = createWorkersAI({ binding: this.env.AI });
 
-    // Built-in Polygon.io tool names always available (+ any user-added MCP tools)
+    // Built-in tool names (Yahoo Finance + FMP + browser fallback + any user-added MCP tools)
     const builtInToolNames = [
       "getSnapshot", "getAggregates", "getTickerDetails", "getTickerNews",
-      "getFinancials", "resolveTickerSymbol", "inferDateRange",
+      "getFinancials", "resolveTickerSymbol", "inferDateRange", "browseUrl",
     ];
     const mcpToolNames = [...builtInToolNames, ...Object.keys(mcpTools)];
 
@@ -133,12 +182,10 @@ export class FinancialResearchAgent extends AIChatAgent<Env, AgentState> {
     }
 
     const result = streamText({
-      // Hermes 2 Pro is specifically trained for function/tool calling on Workers AI.
-      // The 70B fp8-fast model outputs tool calls as raw text instead of API-level
-      // tool_calls, making the Vercel AI SDK unable to intercept and execute them.
-      model: workersai("@hf/nousresearch/hermes-2-pro-mistral-7b"),
-      // Explicitly set toolChoice so workers-ai-provider sends tool_choice:"auto"
-      // rather than undefined, which some Workers AI models require.
+      // GLM 4.7 Flash returns proper structured tool_calls through the Workers AI binding.
+      // Other models (llama-3.3-70b-fp8, hermes-2-pro) output function calls as raw text
+      // which the workers-ai-provider cannot intercept as actual tool invocations.
+      model: workersai("@cf/zai-org/glm-4.7-flash"),
       toolChoice: "auto",
       system: buildSystemPrompt(mcpToolNames),
       messages: pruneMessages({
@@ -146,114 +193,140 @@ export class FinancialResearchAgent extends AIChatAgent<Env, AgentState> {
         toolCalls: "before-last-2-messages",
       }),
       tools: {
-        // All financial data tools from Polygon.io MCP
+        // All tools from user-added MCP servers
         ...mcpTools,
 
-        // ── Polygon.io REST API tools ──────────────────────────────
+        // ── Yahoo Finance tools (no API key required) ──────────────
 
-        // Get latest price snapshot for a stock/crypto/forex ticker
+        // Get current price, day change, volume for any ticker
         getSnapshot: tool({
           description:
-            "Get the current price, day change, and trading volume for a ticker. Use this for 'what is X trading at' or 'current price of X' queries.",
+            "Get the current price, day change %, volume, and market cap for a ticker. Works for stocks (AAPL), crypto (BTC-USD, ETH-USD), and forex (EURUSD=X).",
           inputSchema: z.object({
-            ticker: z.string().describe("Ticker symbol e.g. AAPL, X:BTCUSD, C:EURUSD"),
-            market: z.enum(["stocks", "crypto", "forex"]).default("stocks").describe("Market type"),
+            ticker: z.string().describe("Yahoo Finance ticker: AAPL for stocks, BTC-USD for crypto, EURUSD=X for forex"),
           }),
-          execute: async ({ ticker, market }) => {
-            const path =
-              market === "stocks"
-                ? `/v2/snapshot/locale/us/markets/stocks/tickers/${ticker}`
-                : market === "crypto"
-                  ? `/v2/snapshot/locale/global/markets/crypto/tickers/${ticker}`
-                  : `/v2/snapshot/locale/global/markets/forex/tickers/${ticker}`;
-            return this.polygonFetch(path);
+          execute: async ({ ticker }) => {
+            return this.yahooFetch(YAHOO_Q1, `/v8/finance/chart/${encodeURIComponent(ticker)}`, {
+              interval: "1d",
+              range: "1d",
+            });
           },
         }),
 
         // Get OHLCV aggregate bars for historical price data
         getAggregates: tool({
           description:
-            "Get historical OHLCV (open/high/low/close/volume) price bars for a ticker over a date range. Use for performance charts and trend analysis.",
+            "Get historical OHLCV (open/high/low/close/volume) price bars for a ticker over a date range. Use for trend analysis and performance charts.",
           inputSchema: z.object({
-            ticker: z.string().describe("Ticker symbol e.g. AAPL"),
+            ticker: z.string().describe("Yahoo Finance ticker e.g. AAPL, BTC-USD"),
             from: z.string().describe("Start date YYYY-MM-DD"),
             to: z.string().describe("End date YYYY-MM-DD"),
-            timespan: z.enum(["day", "week", "month"]).default("day").describe("Bar size"),
-            multiplier: z.number().int().default(1).describe("Timespan multiplier"),
+            interval: z.enum(["1d", "1wk", "1mo"]).default("1d").describe("Bar size"),
           }),
-          execute: async ({ ticker, from, to, timespan, multiplier }) => {
-            return this.polygonFetch(
-              `/v2/aggs/ticker/${ticker}/range/${multiplier}/${timespan}/${from}/${to}`,
-              { adjusted: "true", sort: "asc", limit: "120" }
-            );
+          execute: async ({ ticker, from, to, interval }) => {
+            const period1 = Math.floor(new Date(from).getTime() / 1000).toString();
+            const period2 = Math.floor(new Date(to).getTime() / 1000).toString();
+            return this.yahooFetch(YAHOO_Q1, `/v8/finance/chart/${encodeURIComponent(ticker)}`, {
+              interval,
+              period1,
+              period2,
+            });
           },
         }),
 
-        // Get company details: description, market cap, employees, SIC
+        // Get company profile using Yahoo Finance v7/quote (works without crumb), with browser fallback
         getTickerDetails: tool({
           description:
-            "Get company profile information: description, market cap, employee count, sector, exchange. Use this to understand what a company does.",
+            "Get company profile: full name, sector, industry, market cap, P/E ratio (trailing and forward), 52-week high/low, dividend yield, EPS. Automatically falls back to browser if Yahoo Finance fails.",
           inputSchema: z.object({
-            ticker: z.string().describe("Ticker symbol e.g. AAPL"),
+            ticker: z.string().describe("Yahoo Finance ticker e.g. AAPL"),
           }),
           execute: async ({ ticker }) => {
-            return this.polygonFetch(`/v3/reference/tickers/${ticker}`);
+            try {
+              return await this.yahooFetch(YAHOO_Q2, "/v7/finance/quote", {
+                symbols: ticker,
+              });
+            } catch (yahooErr) {
+              console.warn(`[getTickerDetails] Yahoo v7/quote failed for ${ticker}, falling back to browser: ${yahooErr}`);
+              return this.browserFetch(`https://finance.yahoo.com/quote/${encodeURIComponent(ticker)}`);
+            }
           },
         }),
 
         // Get recent news articles for a ticker
         getTickerNews: tool({
           description:
-            "Get the latest news articles and sentiment for a ticker. Use this for recent news context, earnings coverage, and market sentiment.",
+            "Get the latest news headlines for a ticker. Use for recent news context, earnings coverage, and market sentiment.",
           inputSchema: z.object({
-            ticker: z.string().describe("Ticker symbol e.g. AAPL"),
-            limit: z.number().int().min(1).max(10).default(5).describe("Number of articles"),
+            ticker: z.string().describe("Yahoo Finance ticker e.g. AAPL"),
+            count: z.number().int().min(1).max(10).default(5).describe("Number of articles"),
           }),
-          execute: async ({ ticker, limit }) => {
-            return this.polygonFetch("/v2/reference/news", {
-              ticker,
-              limit: String(limit),
-              order: "desc",
-              sort: "published_utc",
+          execute: async ({ ticker, count }) => {
+            return this.yahooFetch(YAHOO_Q2, "/v1/finance/search", {
+              q: ticker,
+              newsCount: String(count),
+              quotesCount: "0",
             });
           },
         }),
 
-        // Get financials: income statement, balance sheet, cash flow
+        // ── Financial Modeling Prep (requires FMP_API_KEY) ──────────
+
+        // Get financial statements via FMP stable API, with automatic browser fallback
         getFinancials: tool({
           description:
-            "Get quarterly or annual financial statements (revenue, net income, EPS, assets, liabilities, cash flow) for a company. Use for fundamental analysis.",
+            "Get financial statements (income statement, balance sheet, cash flow) via Financial Modeling Prep. Use for revenue, net income, EPS, assets, liabilities, and cash flow data. Automatically falls back to browser scraping if the API fails.",
           inputSchema: z.object({
-            ticker: z.string().describe("Ticker symbol e.g. AAPL"),
-            timeframe: z.enum(["quarterly", "annual"]).default("quarterly"),
-            limit: z.number().int().min(1).max(8).default(4).describe("Number of periods"),
+            ticker: z.string().describe("Stock ticker e.g. AAPL"),
+            period: z.enum(["quarterly", "annual"]).default("quarterly"),
+            statement: z.enum(["income", "balance", "cashflow", "all"]).default("income").describe("Which statement(s) to fetch"),
           }),
-          execute: async ({ ticker, timeframe, limit }) => {
-            return this.polygonFetch("/vX/reference/financials", {
-              ticker,
-              timeframe,
-              limit: String(limit),
-              order: "desc",
-              sort: "period_of_report_date",
-            });
+          execute: async ({ ticker, period, statement }) => {
+            const p = period === "quarterly" ? "quarter" : "annual";
+            // Try FMP stable endpoints first (new API, not deprecated v3)
+            try {
+              const results: Record<string, unknown> = {};
+              if (statement === "income" || statement === "all") {
+                results.incomeStatement = await this.fmpFetch("/stable/income-statement", {
+                  symbol: ticker, period: p, limit: "4",
+                });
+              }
+              if (statement === "balance" || statement === "all") {
+                results.balanceSheet = await this.fmpFetch("/stable/balance-sheet-statement", {
+                  symbol: ticker, period: p, limit: "4",
+                });
+              }
+              if (statement === "cashflow" || statement === "all") {
+                results.cashFlow = await this.fmpFetch("/stable/cash-flow-statement", {
+                  symbol: ticker, period: p, limit: "4",
+                });
+              }
+              return results;
+            } catch (fmpErr) {
+              // FMP failed — fall back to browser scraping stockanalysis.com
+              console.warn(`[getFinancials] FMP failed for ${ticker}, falling back to browser: ${fmpErr}`);
+              const t = ticker.toUpperCase();
+              const browserUrl =
+                statement === "balance"
+                  ? `https://stockanalysis.com/stocks/${t.toLowerCase()}/financials/balance-sheet/`
+                  : statement === "cashflow"
+                    ? `https://stockanalysis.com/stocks/${t.toLowerCase()}/financials/cash-flow-statement/`
+                    : `https://stockanalysis.com/stocks/${t.toLowerCase()}/financials/`;
+              return this.browserFetch(browserUrl);
+            }
           },
         }),
 
         // ── Built-in utility tools ──────────────────────────────────
 
-        // Built-in: ticker normalization helper
+        // Normalize company name to Yahoo Finance ticker symbol
         resolveTickerSymbol: tool({
           description:
-            "Normalize a company name or partial ticker to its canonical ticker symbol. Use this FIRST when the user provides a company name instead of a ticker.",
+            "Normalize a company name or partial ticker to its canonical Yahoo Finance ticker symbol. Call this FIRST when the user provides a company name instead of a ticker.",
           inputSchema: z.object({
-            query: z
-              .string()
-              .describe(
-                "Company name or partial ticker, e.g. 'Apple' or 'APPL'"
-              ),
+            query: z.string().describe("Company name or partial ticker, e.g. 'Apple', 'bitcoin', 'APPL'"),
           }),
           execute: async ({ query }) => {
-            // Simple normalization map for common names — MCP handles the rest
             const COMMON: Record<string, string> = {
               apple: "AAPL",
               microsoft: "MSFT",
@@ -265,9 +338,13 @@ export class FinancialResearchAgent extends AIChatAgent<Env, AgentState> {
               nvidia: "NVDA",
               tesla: "TSLA",
               netflix: "NFLX",
-              "berkshire hathaway": "BRK.B",
-              bitcoin: "X:BTCUSD",
-              ethereum: "X:ETHUSD",
+              "berkshire hathaway": "BRK-B",
+              bitcoin: "BTC-USD",
+              ethereum: "ETH-USD",
+              solana: "SOL-USD",
+              dogecoin: "DOGE-USD",
+              ripple: "XRP-USD",
+              cardano: "ADA-USD",
             };
             const normalized = COMMON[query.toLowerCase().trim()];
             return {
@@ -275,21 +352,19 @@ export class FinancialResearchAgent extends AIChatAgent<Env, AgentState> {
               ticker: normalized ?? query.toUpperCase(),
               note: normalized
                 ? "Matched from common names list"
-                : "Passed through as-is — verify with get_ticker_details",
+                : "Passed through as-is — verify with getTickerDetails",
             };
           },
         }),
 
-        // Built-in: date inference helper
+        // Convert natural language date expressions to YYYY-MM-DD
         inferDateRange: tool({
           description:
-            "Convert natural language time expressions to concrete date strings (YYYY-MM-DD). Use before any historical data queries.",
+            "Convert natural language time expressions to concrete date strings (YYYY-MM-DD). Call before any historical data queries.",
           inputSchema: z.object({
             expression: z
               .string()
-              .describe(
-                "Natural language like 'last month', 'past 3 months', 'YTD', 'last year'"
-              ),
+              .describe("Natural language like 'last month', 'past 3 months', 'YTD', 'last year'"),
           }),
           execute: async ({ expression }) => {
             const now = new Date();
@@ -317,6 +392,20 @@ export class FinancialResearchAgent extends AIChatAgent<Env, AgentState> {
               to: now.toISOString().split("T")[0],
               expression,
             };
+          },
+        }),
+
+        // ── Browser fallback (Cloudflare Browser Rendering) ─────────
+
+        // Last-resort: navigate to any financial URL and extract text content
+        browseUrl: tool({
+          description:
+            "Navigate to a financial website using a real browser and extract the page text. Use as a LAST RESORT when all other tools fail or return errors. Good URLs: https://finance.yahoo.com/quote/AAPL, https://finance.yahoo.com/quote/AAPL/financials, https://stockanalysis.com/stocks/AAPL/financials/",
+          inputSchema: z.object({
+            url: z.string().describe("Full URL to visit, e.g. https://finance.yahoo.com/quote/AAPL/financials"),
+          }),
+          execute: async ({ url }) => {
+            return this.browserFetch(url);
           },
         }),
       },
