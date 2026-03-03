@@ -32,4 +32,3 @@ export const INITIAL_STATE: AgentState = {
 };
 
 export const MAX_ITERATIONS = 10;
-export const POLYGON_MCP_URL = "https://mcp.polygon.io/sse";

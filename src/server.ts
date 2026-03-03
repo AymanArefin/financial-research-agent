@@ -16,17 +16,18 @@ import {
   type ToolResult,
   INITIAL_STATE,
   MAX_ITERATIONS,
-  POLYGON_MCP_URL,
 } from "./types";
+
+const POLYGON_BASE = "https://api.polygon.io";
 
 export class FinancialResearchAgent extends AIChatAgent<Env, AgentState> {
   initialState = INITIAL_STATE;
 
-  // Wait for MCP connections (Polygon.io) to restore after hibernation
+  // Wait for any user-added MCP connections to restore after hibernation
   waitForMcpConnections = true;
 
   async onStart() {
-    // Configure OAuth popup behavior for MCP servers
+    // Configure OAuth popup behavior for user-added MCP servers
     this.mcp.configureOAuthCallback({
       customHandler: (result) => {
         if (result.authSuccess) {
@@ -41,24 +42,21 @@ export class FinancialResearchAgent extends AIChatAgent<Env, AgentState> {
         );
       },
     });
+  }
 
-    // Pre-connect to Polygon.io MCP if API key is configured
-    if (this.env.POLYGON_API_KEY) {
-      try {
-        await this.addMcpServer("polygon", POLYGON_MCP_URL, {
-          transport: {
-            type: "sse",
-            headers: {
-              Authorization: `Bearer ${this.env.POLYGON_API_KEY}`,
-            },
-          },
-        });
-        console.log("Connected to Polygon.io MCP server");
-      } catch (err) {
-        // Non-fatal: agent works without MCP, user can add manually
-        console.warn("Failed to connect to Polygon.io MCP:", err);
-      }
+  /** Helper: fetch from Polygon.io REST API with API key auth */
+  private async polygonFetch(path: string, params: Record<string, string> = {}): Promise<unknown> {
+    const url = new URL(`${POLYGON_BASE}${path}`);
+    url.searchParams.set("apiKey", this.env.POLYGON_API_KEY);
+    for (const [k, v] of Object.entries(params)) {
+      url.searchParams.set(k, v);
     }
+    const res = await fetch(url.toString());
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`Polygon.io API error ${res.status}: ${text.slice(0, 200)}`);
+    }
+    return res.json();
   }
 
   // ── Callable RPC methods (invoked from frontend via agent.call()) ──
@@ -92,8 +90,14 @@ export class FinancialResearchAgent extends AIChatAgent<Env, AgentState> {
 
   async onChatMessage(_onFinish: unknown, options?: OnChatMessageOptions) {
     const mcpTools = this.mcp.getAITools();
-    const mcpToolNames = Object.keys(mcpTools);
     const workersai = createWorkersAI({ binding: this.env.AI });
+
+    // Built-in Polygon.io tool names always available (+ any user-added MCP tools)
+    const builtInToolNames = [
+      "getSnapshot", "getAggregates", "getTickerDetails", "getTickerNews",
+      "getFinancials", "resolveTickerSymbol", "inferDateRange",
+    ];
+    const mcpToolNames = [...builtInToolNames, ...Object.keys(mcpTools)];
 
     // Track current query for scratchpad context
     const userMessages = this.messages.filter((m) => m.role === "user");
@@ -124,6 +128,98 @@ export class FinancialResearchAgent extends AIChatAgent<Env, AgentState> {
       tools: {
         // All financial data tools from Polygon.io MCP
         ...mcpTools,
+
+        // ── Polygon.io REST API tools ──────────────────────────────
+
+        // Get latest price snapshot for a stock/crypto/forex ticker
+        getSnapshot: tool({
+          description:
+            "Get the current price, day change, and trading volume for a ticker. Use this for 'what is X trading at' or 'current price of X' queries.",
+          inputSchema: z.object({
+            ticker: z.string().describe("Ticker symbol e.g. AAPL, X:BTCUSD, C:EURUSD"),
+            market: z.enum(["stocks", "crypto", "forex"]).default("stocks").describe("Market type"),
+          }),
+          execute: async ({ ticker, market }) => {
+            const path =
+              market === "stocks"
+                ? `/v2/snapshot/locale/us/markets/stocks/tickers/${ticker}`
+                : market === "crypto"
+                  ? `/v2/snapshot/locale/global/markets/crypto/tickers/${ticker}`
+                  : `/v2/snapshot/locale/global/markets/forex/tickers/${ticker}`;
+            return this.polygonFetch(path);
+          },
+        }),
+
+        // Get OHLCV aggregate bars for historical price data
+        getAggregates: tool({
+          description:
+            "Get historical OHLCV (open/high/low/close/volume) price bars for a ticker over a date range. Use for performance charts and trend analysis.",
+          inputSchema: z.object({
+            ticker: z.string().describe("Ticker symbol e.g. AAPL"),
+            from: z.string().describe("Start date YYYY-MM-DD"),
+            to: z.string().describe("End date YYYY-MM-DD"),
+            timespan: z.enum(["day", "week", "month"]).default("day").describe("Bar size"),
+            multiplier: z.number().int().default(1).describe("Timespan multiplier"),
+          }),
+          execute: async ({ ticker, from, to, timespan, multiplier }) => {
+            return this.polygonFetch(
+              `/v2/aggs/ticker/${ticker}/range/${multiplier}/${timespan}/${from}/${to}`,
+              { adjusted: "true", sort: "asc", limit: "120" }
+            );
+          },
+        }),
+
+        // Get company details: description, market cap, employees, SIC
+        getTickerDetails: tool({
+          description:
+            "Get company profile information: description, market cap, employee count, sector, exchange. Use this to understand what a company does.",
+          inputSchema: z.object({
+            ticker: z.string().describe("Ticker symbol e.g. AAPL"),
+          }),
+          execute: async ({ ticker }) => {
+            return this.polygonFetch(`/v3/reference/tickers/${ticker}`);
+          },
+        }),
+
+        // Get recent news articles for a ticker
+        getTickerNews: tool({
+          description:
+            "Get the latest news articles and sentiment for a ticker. Use this for recent news context, earnings coverage, and market sentiment.",
+          inputSchema: z.object({
+            ticker: z.string().describe("Ticker symbol e.g. AAPL"),
+            limit: z.number().int().min(1).max(10).default(5).describe("Number of articles"),
+          }),
+          execute: async ({ ticker, limit }) => {
+            return this.polygonFetch("/v2/reference/news", {
+              ticker,
+              limit: String(limit),
+              order: "desc",
+              sort: "published_utc",
+            });
+          },
+        }),
+
+        // Get financials: income statement, balance sheet, cash flow
+        getFinancials: tool({
+          description:
+            "Get quarterly or annual financial statements (revenue, net income, EPS, assets, liabilities, cash flow) for a company. Use for fundamental analysis.",
+          inputSchema: z.object({
+            ticker: z.string().describe("Ticker symbol e.g. AAPL"),
+            timeframe: z.enum(["quarterly", "annual"]).default("quarterly"),
+            limit: z.number().int().min(1).max(8).default(4).describe("Number of periods"),
+          }),
+          execute: async ({ ticker, timeframe, limit }) => {
+            return this.polygonFetch("/vX/reference/financials", {
+              ticker,
+              timeframe,
+              limit: String(limit),
+              order: "desc",
+              sort: "period_of_report_date",
+            });
+          },
+        }),
+
+        // ── Built-in utility tools ──────────────────────────────────
 
         // Built-in: ticker normalization helper
         resolveTickerSymbol: tool({
