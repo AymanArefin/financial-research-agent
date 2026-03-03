@@ -68,6 +68,10 @@ export class FinancialResearchAgent extends AIChatAgent<Env, AgentState> {
 
   @callable()
   async addServer(name: string, url: string, host: string) {
+    // Enforce HTTPS-only MCP server URLs to prevent protocol downgrade attacks
+    if (!url.startsWith("https://")) {
+      throw new Error("MCP server URL must use HTTPS");
+    }
     return await this.addMcpServer(name, url, { callbackHost: host });
   }
 
@@ -214,10 +218,10 @@ export class FinancialResearchAgent extends AIChatAgent<Env, AgentState> {
 
         if (toolCalls.length === 0) return;
 
-        const newResults: ToolResult[] = toolCalls.map((call: any, i: number) => ({
+        const newResults: ToolResult[] = toolCalls.map((call: any) => ({
           tool: call.toolName,
           input: call.input as Record<string, unknown>,
-          result: toolResults[i]?.output ?? null,
+          result: toolResults.find((r: any) => r.toolCallId === call.toolCallId)?.output ?? null,
           timestamp: new Date().toISOString(),
           durationMs: 0,
         }));
