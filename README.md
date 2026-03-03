@@ -1,5 +1,29 @@
 # Agent Starter
 
+## Setup
+
+### 1. Polygon.io API Key
+
+This agent uses Polygon.io for real-time financial data.
+
+1. Sign up at https://polygon.io (free tier available)
+2. Copy your API key from the dashboard
+3. For local dev: add to `.dev.vars`:
+   ```
+   POLYGON_API_KEY=your_key_here
+   ```
+4. For production: `npx wrangler secret put POLYGON_API_KEY`
+
+### 2. Start the Dev Server
+
+```bash
+npm run dev
+```
+
+Open http://localhost:5173 to use the Financial Research Agent.
+
+---
+
 ![npm i agents command](./npm-agents-banner.svg)
 
 <a href="https://deploy.workers.cloudflare.com/?url=https://github.com/cloudflare/agents-starter"><img src="https://deploy.workers.cloudflare.com/button" alt="Deploy to Cloudflare"/></a>
