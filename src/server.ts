@@ -133,7 +133,13 @@ export class FinancialResearchAgent extends AIChatAgent<Env, AgentState> {
     }
 
     const result = streamText({
-      model: workersai("@cf/meta/llama-3.3-70b-instruct-fp8-fast"),
+      // Hermes 2 Pro is specifically trained for function/tool calling on Workers AI.
+      // The 70B fp8-fast model outputs tool calls as raw text instead of API-level
+      // tool_calls, making the Vercel AI SDK unable to intercept and execute them.
+      model: workersai("@hf/nousresearch/hermes-2-pro-mistral-7b"),
+      // Explicitly set toolChoice so workers-ai-provider sends tool_choice:"auto"
+      // rather than undefined, which some Workers AI models require.
+      toolChoice: "auto",
       system: buildSystemPrompt(mcpToolNames),
       messages: pruneMessages({
         messages: await convertToModelMessages(this.messages),
