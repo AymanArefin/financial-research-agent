@@ -27,6 +27,20 @@ export class FinancialResearchAgent extends AIChatAgent<Env, AgentState> {
   waitForMcpConnections = true;
 
   async onStart() {
+    // Remove any MCP servers that are in a failed state from previous runs.
+    // This prevents stale persisted connections (e.g. from a wrong URL in a
+    // prior deploy) from generating "failed" warnings on every agent wake.
+    const mcpState = this.getMcpServers();
+    for (const [id, server] of Object.entries(mcpState.servers)) {
+      if (server.state === "failed") {
+        try {
+          await this.removeMcpServer(id);
+        } catch {
+          // Non-fatal — best effort cleanup
+        }
+      }
+    }
+
     // Configure OAuth popup behavior for user-added MCP servers
     this.mcp.configureOAuthCallback({
       customHandler: (result) => {
