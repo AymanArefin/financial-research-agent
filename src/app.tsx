@@ -204,13 +204,21 @@ function Chat() {
     tools: []
   });
   const [showMcpPanel, setShowMcpPanel] = useState(false);
+  const [showScratchpad, setShowScratchpad] = useState(false);
+  const [scratchpad, setScratchpad] = useState<{
+    iterations: number;
+    toolResults: Array<{ tool: string; timestamp: string }>;
+    totalTokensUsed: number;
+    researchQuery: string | null;
+  } | null>(null);
   const [mcpName, setMcpName] = useState("");
   const [mcpUrl, setMcpUrl] = useState("");
   const [isAddingServer, setIsAddingServer] = useState(false);
   const mcpPanelRef = useRef<HTMLDivElement>(null);
+  const scratchpadPanelRef = useRef<HTMLDivElement>(null);
 
   const agent = useAgent({
-    agent: "ChatAgent",
+    agent: "FinancialResearchAgent",
     onOpen: useCallback(() => setConnected(true), []),
     onClose: useCallback(() => setConnected(false), []),
     onError: useCallback(
@@ -219,6 +227,10 @@ function Chat() {
     ),
     onMcpUpdate: useCallback((state: MCPServersState) => {
       setMcpState(state);
+    }, []),
+    onStateUpdate: useCallback((state: unknown) => {
+      const s = state as { scratchpad?: { iterations: number; toolResults: Array<{ tool: string; timestamp: string }>; totalTokensUsed: number; researchQuery: string | null } };
+      if (s?.scratchpad) setScratchpad(s.scratchpad);
     }, []),
     onMessage: useCallback(
       (message: MessageEvent) => {
@@ -338,7 +350,7 @@ function Chat() {
         <div className="max-w-3xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
             <h1 className="text-lg font-semibold text-kumo-default">
-              <span className="mr-2">⛅</span>Agent Starter
+              <span className="mr-2">📈</span>Financial Research Agent
             </h1>
             <Badge variant="secondary">
               <ChatCircleDotsIcon size={12} weight="bold" className="mr-1" />
@@ -531,6 +543,69 @@ function Chat() {
                 </div>
               )}
             </div>
+            {/* Scratchpad button */}
+            <div className="relative" ref={scratchpadPanelRef}>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setShowScratchpad((v) => !v)}
+                icon={<BrainIcon size={14} />}
+              >
+                Research
+                {scratchpad && scratchpad.iterations > 0 && (
+                  <Badge variant="secondary" className="ml-1">
+                    {scratchpad.iterations}
+                  </Badge>
+                )}
+              </Button>
+
+              {showScratchpad && (
+                <div className="absolute top-full right-0 mt-2 w-72 z-50">
+                  <Surface className="p-4 shadow-xl space-y-3">
+                    <Text size="sm" bold>Research Scratchpad</Text>
+                    {scratchpad?.researchQuery && (
+                      <div>
+                        <Text size="xs" variant="secondary">Current Query</Text>
+                        <span className="text-xs line-clamp-2">{scratchpad.researchQuery}</span>
+                      </div>
+                    )}
+                    <div className="flex gap-4">
+                      <div>
+                        <Text size="xs" variant="secondary">Iterations</Text>
+                        <Text size="sm" bold>{scratchpad?.iterations ?? 0} / 10</Text>
+                      </div>
+                      <div>
+                        <Text size="xs" variant="secondary">Tokens Used</Text>
+                        <Text size="sm" bold>{(scratchpad?.totalTokensUsed ?? 0).toLocaleString()}</Text>
+                      </div>
+                    </div>
+                    {scratchpad && scratchpad.toolResults.length > 0 && (
+                      <div>
+                        <div className="mb-1"><Text size="xs" variant="secondary">Tool Calls</Text></div>
+                        <div className="space-y-1 max-h-40 overflow-y-auto">
+                          {scratchpad.toolResults.map((r, i) => (
+                            <div key={i} className="flex items-center gap-2">
+                              <WrenchIcon size={10} className="text-kumo-subtle" />
+                              <Text size="xs">{r.tool}</Text>
+                              <span className="text-xs text-kumo-subtle ml-auto">
+                                {new Date(r.timestamp).toLocaleTimeString()}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={async () => { await agent.call("resetScratchpad", []); setScratchpad(null); }}
+                    >
+                      Reset
+                    </Button>
+                  </Surface>
+                </div>
+              )}
+            </div>
             <Button
               variant="secondary"
               icon={<TrashIcon size={16} />}
@@ -552,10 +627,12 @@ function Chat() {
               contents={
                 <div className="flex flex-wrap justify-center gap-2">
                   {[
-                    "What's the weather in Paris?",
-                    "What timezone am I in?",
-                    "Calculate 5000 * 3",
-                    "Remind me in 5 minutes to take a break"
+                    "Research Apple stock — price, fundamentals, and recent news",
+                    "How has NVDA performed over the past 3 months?",
+                    "Compare MSFT vs GOOGL revenue growth",
+                    "What are Bitcoin and Ethereum doing today?",
+                    "Show me Tesla's latest quarterly financials",
+                    "What's the P/E ratio for the S&P 500 ETF (SPY)?"
                   ].map((prompt) => (
                     <Button
                       key={prompt}
