@@ -25,15 +25,15 @@
 	"durable_objects": {
 		"bindings": [
 			{
-				"class_name": "ChatAgent",
-				"name": "ChatAgent"
+				"class_name": "FinancialResearchAgent",
+				"name": "FinancialResearchAgent"
 			}
 		]
 	},
 	"migrations": [
 		{
 			"new_sqlite_classes": [
-				"ChatAgent"
+				"FinancialResearchAgent"
 			],
 			"tag": "v1"
 		}
@@ -59,6 +59,9 @@
 	 * https://developers.cloudflare.com/workers/configuration/secrets/
 	 */
 	// "vars": {  "MY_VARIABLE": "production_value" }
+	"vars": {
+		"POLYGON_API_KEY": ""
+	}
 	/**
 	 * Service Bindings (communicate between multiple Workers)
 	 * https://developers.cloudflare.com/workers/wrangler/configuration/#service-bindings

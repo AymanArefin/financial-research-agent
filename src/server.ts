@@ -43,15 +43,12 @@ export class FinancialResearchAgent extends AIChatAgent<Env, AgentState> {
     });
 
     // Pre-connect to Polygon.io MCP if API key is configured
-    // @ts-ignore
     if (this.env.POLYGON_API_KEY) {
       try {
-        // @ts-ignore
         await this.addMcpServer("polygon", POLYGON_MCP_URL, {
           transport: {
             type: "sse",
             headers: {
-              // @ts-ignore
               Authorization: `Bearer ${this.env.POLYGON_API_KEY}`,
             },
           },
